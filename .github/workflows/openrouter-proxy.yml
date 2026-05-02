@@ -7,9 +7,16 @@ on:
 jobs:
   proxy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Call OpenRouter API
-        id: call_openrouter
+        id: callapi
         run: |
           RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
             -H "Content-Type: application/json" \
@@ -19,18 +26,20 @@ jobs:
               "messages": [{"role": "user", "content": "${{ github.event.client_payload.prompt }}"}]
             }')
           
-          echo "API Response: $RESPONSE"
-          
-          # استخراج متن پاسخ
-          ANSWER=$(echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//')
+          ANSWER=$(echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//' | sed 's/\\n/\n/g')
           
           if [ -z "$ANSWER" ]; then
-            ANSWER="خطا یا پاسخ نامعتبر از OpenRouter"
+            ANSWER="خطا: پاسخی از OpenRouter دریافت نشد"
           fi
           
-          echo "answer=$ANSWER" >> $GITHUB_OUTPUT
+          # ذخیره در فایل response.txt
+          echo "$ANSWER" > response.txt
+          echo "پاسخ ذخیره شد: $ANSWER"
           
-      - name: Show Answer in Summary
+      - name: Commit and push
         run: |
-          echo "## 🤖 پاسخ OpenRouter" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.call_openrouter.outputs.answer }}" >> $GITHUB_STEP_SUMMARY
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
+          git add response.txt
+          git diff --staged --quiet || git commit -m "Update AI response [skip ci]"
+          git push
