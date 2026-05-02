@@ -1,12 +1,8 @@
 name: OpenRouter Proxy
 
 on:
-  workflow_dispatch:
-    inputs:
-      prompt:
-        description: 'Your question to AI'
-        required: true
-        default: 'Say "API working"'
+  repository_dispatch:
+    types: [ai-request]
 
 jobs:
   proxy:
@@ -14,13 +10,26 @@ jobs:
     steps:
       - name: Call OpenRouter API
         run: |
-          curl -X POST https://openrouter.ai/api/v1/chat/completions \
+          RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
             -d '{
               "model": "openrouter/free",
-              "messages": [{"role": "user", "content": "${{ github.event.inputs.prompt }}"}]
-            }' | tee output.txt
+              "messages": [{"role": "user", "content": "${{ github.event.client_payload.prompt }}"}]
+            }')
           
-          echo "=== API RESPONSE ==="
-          cat output.txt
+          ANSWER=$(echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//')
+          
+          if [ -z "$ANSWER" ]; then
+            ANSWER="خطا در دریافت پاسخ از OpenRouter"
+          fi
+          
+          echo "$ANSWER" > response.txt
+          
+      - name: Commit response
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add response.txt
+          git commit -m "Update response" || echo "No changes"
+          git push
