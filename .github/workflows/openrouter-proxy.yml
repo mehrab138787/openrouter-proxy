@@ -10,10 +10,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-      
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Call OpenRouter API
+        id: callapi
         run: |
           RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
             -H "Content-Type: application/json" \
@@ -23,14 +26,20 @@ jobs:
               "messages": [{"role": "user", "content": "${{ github.event.client_payload.prompt }}"}]
             }')
           
-          echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//' > response.txt
+          echo "$RESPONSE" > full_response.json
           
-          cat response.txt
+          ANSWER=$(echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//' | sed 's/\\n/\n/g')
           
-      - name: Commit and push
+          if [ -z "$ANSWER" ]; then
+            ANSWER="خطا: پاسخی از OpenRouter دریافت نشد"
+          fi
+          
+          echo "$ANSWER" > response.txt
+          
+      - name: Commit and Push
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add response.txt
-          git diff --staged --quiet || git commit -m "Update response [skip ci]"
+          git config user.email "actions@github.com"
+          git add response.txt full_response.json
+          git diff --staged --quiet || git commit -m "Update API response [skip ci]"
           git push
