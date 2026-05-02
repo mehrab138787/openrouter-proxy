@@ -1,0 +1,24 @@
+name: OpenRouter Proxy
+
+on:
+  repository_dispatch:
+    types: [ai-request]
+
+jobs:
+  proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call OpenRouter API
+        id: call_openrouter
+        run: |
+          RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
+            -d '{
+              "model": "openai/gpt-3.5-turbo",
+              "messages": [{"role": "user", "content": "${{ github.event.client_payload.prompt }}"}]
+            }')
+          echo "response=$RESPONSE" >> $GITHUB_OUTPUT
+          
+      - name: Show Response in Logs
+        run: echo "Response: ${{ steps.call_openrouter.outputs.response }}"
