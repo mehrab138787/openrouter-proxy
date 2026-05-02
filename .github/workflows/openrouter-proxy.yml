@@ -16,20 +16,29 @@ jobs:
           
       - name: Get AI Answer
         run: |
-          curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
+          # ارسال درخواست به OpenRouter
+          RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
             -d '{
               "model": "openrouter/free",
               "messages": [{"role": "user", "content": "'"${{ github.event.client_payload.prompt }}"'"}]
-            }' > full.json
+            }')
           
-          cat full.json | jq -r '.choices[0].message.content' > output.txt
+          # ذخیره پاسخ کامل برای debug
+          echo "$RESPONSE" > full.json
           
-      - name: Save
+          # استخراج فقط متن پاسخ
+          echo "$RESPONSE" | jq -r '.choices[0].message.content // "خطا: پاسخی دریافت نشد"' > output.txt
+          
+          # نمایش پاسخ در لاگ (برای اطمینان)
+          echo "=== پاسخ دریافتی از OpenRouter ==="
+          cat output.txt
+          
+      - name: Commit and Push
         run: |
-          git config user.name "bot"
-          git config user.email "bot@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
           git add output.txt full.json
-          git commit -m "update answer" || echo "no change"
+          git commit -m "Update answer: $(date '+%Y-%m-%d %H:%M:%S')" || echo "Nothing to commit"
           git push
