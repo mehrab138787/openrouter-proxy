@@ -16,23 +16,25 @@ jobs:
           
       - name: Get AI Answer
         run: |
-          # ارسال درخواست به OpenRouter
-          RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
+          # ارسال درخواست به OpenRouter و ذخیره پاسخ خام
+          curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
             -d '{
               "model": "openrouter/free",
               "messages": [{"role": "user", "content": "'"${{ github.event.client_payload.prompt }}"'"}]
-            }')
+            }' > full.json
           
-          # ذخیره پاسخ کامل برای debug
-          echo "$RESPONSE" > full.json
+          # استخراج پاسخ با grep و sed (بدون نیاز به jq)
+          grep -o '"content":"[^"]*"' full.json | head -1 | sed 's/"content":"//' | sed 's/"//' > output.txt
           
-          # استخراج فقط متن پاسخ
-          echo "$RESPONSE" | jq -r '.choices[0].message.content // "خطا: پاسخی دریافت نشد"' > output.txt
+          # اگر خطایی رخ داد، یک پیام پیش‌فرض ذخیره کن
+          if [ ! -s output.txt ]; then
+            echo "خطا: پاسخی از OpenRouter دریافت نشد" > output.txt
+          fi
           
-          # نمایش پاسخ در لاگ (برای اطمینان)
-          echo "=== پاسخ دریافتی از OpenRouter ==="
+          # نمایش پاسخ در لاگ برای اطمینان
+          echo "=== پاسخ دریافتی ==="
           cat output.txt
           
       - name: Commit and Push
@@ -40,5 +42,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "actions@github.com"
           git add output.txt full.json
-          git commit -m "Update answer: $(date '+%Y-%m-%d %H:%M:%S')" || echo "Nothing to commit"
+          git commit -m "Update answer: $(date)" || echo "Nothing to commit"
           git push
