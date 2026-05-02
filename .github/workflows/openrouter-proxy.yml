@@ -18,6 +18,6 @@ jobs:
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
             -d '{
-              "model": "openai/gpt-3.5-turbo",
+              "model": "openrouter/free",
               "messages": [{"role": "user", "content": "${{ github.event.inputs.prompt }}"}]
             }'
