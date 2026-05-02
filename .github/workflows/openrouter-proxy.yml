@@ -1,11 +1,23 @@
-name: Test Simple
+name: OpenRouter Proxy
 
 on:
   workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Your question to AI'
+        required: true
+        default: 'Hello, how are you?'
 
 jobs:
-  test:
+  proxy:
     runs-on: ubuntu-latest
     steps:
-      - name: Say Hello
-        run: echo "Hello World"
+      - name: Call OpenRouter API
+        run: |
+          curl -X POST https://openrouter.ai/api/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
+            -d '{
+              "model": "openai/gpt-3.5-turbo",
+              "messages": [{"role": "user", "content": "${{ github.event.inputs.prompt }}"}]
+            }'
