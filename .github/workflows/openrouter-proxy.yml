@@ -3,6 +3,12 @@ name: OpenRouter Proxy
 on:
   repository_dispatch:
     types: [ai-request]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'سوال شما'
+        required: true
+        default: 'Hello'
 
 jobs:
   proxy:
@@ -10,36 +16,36 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Call OpenRouter API
-        id: callapi
+      - name: Call OpenRouter
         run: |
+          PROMPT="${{ github.event.client_payload.prompt || github.event.inputs.prompt }}"
+          
           RESPONSE=$(curl -s -X POST https://openrouter.ai/api/v1/chat/completions \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENROUTER_API_KEY }}" \
             -d '{
               "model": "openrouter/free",
-              "messages": [{"role": "user", "content": "${{ github.event.client_payload.prompt }}"}]
+              "messages": [{"role": "user", "content": "'"$PROMPT"'"}]
             }')
           
-          ANSWER=$(echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//' | sed 's/\\n/\n/g')
+          echo "$RESPONSE" > result.json
+          
+          ANSWER=$(echo "$RESPONSE" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//' | sed 's/"//')
           
           if [ -z "$ANSWER" ]; then
-            ANSWER="خطا: پاسخی از OpenRouter دریافت نشد"
+            ANSWER="خطا: پاسخی دریافت نشد"
           fi
           
-          # ذخیره در فایل response.txt
-          echo "$ANSWER" > response.txt
-          echo "پاسخ ذخیره شد: $ANSWER"
+          echo "$ANSWER" > latest-answer.txt
           
-      - name: Commit and push
+      - name: Save to repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "actions@github.com"
-          git add response.txt
-          git diff --staged --quiet || git commit -m "Update AI response [skip ci]"
+          git add latest-answer.txt result.json
+          git commit -m "Update answer [skip ci]" || echo "Nothing to commit"
           git push
